@@ -1293,7 +1293,7 @@ class LLVMCodeGenerator(visitors.NumbaVisitor,
         _, pyobject_call = self.context.external_library.declare(
                                         self.llvm_module, 'PyObject_Call')
 
-        res = self.builder.call(pyobject_call, largs, name=node.name)
+        res = self.builder.call(pyobject_call, largs)
         return self.caster.cast(res, node.variable.type.to_llvm(self.context))
 
     def visit_NativeCallNode(self, node, largs=None):
@@ -1309,13 +1309,7 @@ class LLVMCodeGenerator(visitors.NumbaVisitor,
         else:
             lfunc = node.llvm_func
 
-
-        if node.signature.return_type.is_void or return_value is not None:
-            kwargs = {}
-        else:
-            kwargs = dict(name=node.name + '_result')
-
-        result = self.builder.call(lfunc, largs, **kwargs)
+        result = self.builder.call(lfunc, largs)
 
         if node.signature.struct_by_reference:
             if minitypes.pass_by_ref(node.signature.return_type):
@@ -1533,8 +1527,7 @@ class LLVMCodeGenerator(visitors.NumbaVisitor,
         bb = self.builder.basic_block
         # Initialize temp to NULL at beginning of function
         self.builder.position_at_beginning(self.lfunc.get_entry_basic_block())
-        name = getattr(node.node, 'name', 'object') + '_temp'
-        lhs = self._null_obj_temp(name)
+        lhs = self._null_obj_temp('objtemp')
         node.llvm_temp = lhs
 
         # Assign value
@@ -1553,7 +1546,7 @@ class LLVMCodeGenerator(visitors.NumbaVisitor,
 
         # Generate Py_XDECREF(temp) at end-of-function cleanup path
         self.xdecref_temp_cleanup(lhs)
-        result = self.load_tbaa(lhs, object_, name=name + '_load')
+        result = self.load_tbaa(lhs, object_, name=lhs.name + '_load')
 
         if not node.type == object_:
             dst_type = node.type.to_llvm(self.context)
